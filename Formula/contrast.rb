@@ -1,7 +1,7 @@
 
 class Contrast < Formula
-    desc "Initial release"
-    homepage "https://www.contrastsecurity.com/"
+    desc "Contrast CLI"
+    homepage "https://github.com/contrastsecurity/contrast"
     license "MIT"
   
     if OS.mac?
