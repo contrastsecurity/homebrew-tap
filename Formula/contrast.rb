@@ -5,13 +5,13 @@ class Contrast < Formula
   license "MIT"
 
   if OS.mac?
-    url "https://contrastsecurity.jfrog.io/artifactory/cli/v2/3.0.0/mac/contrast"
-    sha256 "f04d80422b3f2e72c63b8f8a7948e400b16e24e0091a68cb8842031f7490eab1"
+    url "https://contrastsecurity.jfrog.io/artifactory/cli/v2/3.1.0/mac/contrast"
+    sha256 "2cf7ea597296e6b1320e14962dff58d8a0d85d8cfe56c2210a74839343c9dfd0"
 
   elsif OS.linux?
     if Hardware::CPU.intel?
-      url "https://contrastsecurity.jfrog.io/artifactory/cli/v2/3.0.0/linux/contrast"
-      sha256 "3d0597f1531d71a9b39b293c0875454eb05effa9514062ccf7c2546f2033d0db"
+      url "https://contrastsecurity.jfrog.io/artifactory/cli/v2/3.1.0/linux/contrast"
+      sha256 "26d088f2e4de629c4b4009232c757b79b45326b99d6ff14ff6e31565df5d4517"
     end
   end
 
