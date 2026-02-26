@@ -19,5 +19,3 @@ class Contrast < Formula
     bin.install "contrast"
   end
 end
-
-∑
