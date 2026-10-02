@@ -38,10 +38,13 @@ trap 'rm -rf "$workdir"' EXIT
 for platform in "${PLATFORMS[@]}"; do
   archive="contrast-cns-$platform.tar.gz"
   curl -fsSL -o "$workdir/$archive" "$BASE_URL/$latest/$archive"
-  # Sanity check that the bundle still has the layout the formula installs
-  tar -tzf "$workdir/$archive" | grep -qx "contrast-cns-$platform/contrast-cns" \
-    || { echo "$archive is missing contrast-cns" >&2; exit 1; }
-  tar -tzf "$workdir/$archive" | grep -q "^contrast-cns-$platform/_internal/" \
+  # Sanity check that the bundle still has the layout the formula installs.
+  # List once and grep the result: piping tar into grep -q fails under pipefail
+  # because grep exits early and GNU tar errors on the closed pipe.
+  listing=$(tar -tzf "$workdir/$archive")
+  grep -qx "contrast-cns-$platform/contrast-cli" <<<"$listing" \
+    || { echo "$archive is missing contrast-cli" >&2; exit 1; }
+  grep -q "^contrast-cns-$platform/_internal/" <<<"$listing" \
     || { echo "$archive is missing _internal/" >&2; exit 1; }
   sum=$(sha256 "$workdir/$archive")
   echo "  $archive $sum"
