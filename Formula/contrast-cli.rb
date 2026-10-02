@@ -1,5 +1,5 @@
 class ContrastCli < Formula
-  desc "Contrast CNS CLI"
+  desc "Contrast CLI"
   homepage "https://www.contrastsecurity.com"
   version "0.0.47"
 
