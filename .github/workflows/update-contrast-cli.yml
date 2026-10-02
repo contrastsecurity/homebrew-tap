@@ -1,0 +1,42 @@
+name: Update contrast-cli formula
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-contrast-cli
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check for a new contrast-cli release
+        id: update
+        run: ./scripts/update-contrast-cli.sh
+
+      - name: Open or update pull request
+        if: steps.update.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_PR_TOKEN || github.token }}
+          branch: automation/contrast-cli-update
+          delete-branch: true
+          add-paths: Formula/contrast-cli.rb
+          commit-message: "Update contrast-cli to ${{ steps.update.outputs.version }}"
+          title: "Update contrast-cli to ${{ steps.update.outputs.version }}"
+          body: |
+            Updates `contrast-cli` to ${{ steps.update.outputs.version }} from
+            https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns/${{ steps.update.outputs.version }}/
+
+            Checksums were computed from the downloaded archives, and each archive was checked for the `contrast-cli` executable and `_internal/` runtime the formula installs.
+
+            Opened automatically by the `Update contrast-cli formula` workflow.
