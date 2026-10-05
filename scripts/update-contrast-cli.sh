@@ -39,8 +39,8 @@ for platform in "${PLATFORMS[@]}"; do
   archive="contrast-cns-$platform.tar.gz"
   curl -fsSL -o "$workdir/$archive" "$BASE_URL/$latest/$archive"
   # Sanity check that the bundle still has the layout the formula installs
-  tar -tzf "$workdir/$archive" | grep -qx "contrast-cns-$platform/contrast-cns" \
-    || { echo "$archive is missing contrast-cns" >&2; exit 1; }
+  tar -tzf "$workdir/$archive" | grep -qx "contrast-cns-$platform/contrast-cli" \
+    || { echo "$archive is missing contrast-cli" >&2; exit 1; }
   tar -tzf "$workdir/$archive" | grep -q "^contrast-cns-$platform/_internal/" \
     || { echo "$archive is missing _internal/" >&2; exit 1; }
   sum=$(sha256 "$workdir/$archive")
