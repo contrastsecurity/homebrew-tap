@@ -32,30 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags --quiet origin "$BASE_SHA"
-          # Three dots diff against the merge base, so commits that landed on the base since don't count
-          range="$BASE_SHA...$HEAD_SHA"
-          changed="$(git diff --no-renames --name-only "$range")"
-          summary="$(git diff --no-renames --summary "$range")"
-          if [ "$changed" != "$FORMULA" ] || [ -n "$summary" ]; then
-            echo "::error::only the contents of ${FORMULA} may change, but the PR changes: ${changed//$'\n'/ } ${summary}"
-            exit 1
-          fi
-          diff="$(git diff --no-renames -U0 "$range" -- "$FORMULA")"
-          # Only lines after the first hunk header, so no content line can pass as a diff header
-          body="$(awk '/^@@/ { h = 1; next } h && /^[-+]/' <<<"$diff")"
-          bad="$(grep -vE '^[-+](  version "[0-9]+\.[0-9]+\.[0-9]+"|      sha256 "[0-9a-f]{64}")$' <<<"$body" || true)"
-          if [ -n "$bad" ]; then
-            echo "::error::lines other than version and sha256 changed:"
-            echo "$bad"
-            exit 1
-          fi
-          counts="$(grep -c '^-  version ' <<<"$body" || true) $(grep -c '^+  version ' <<<"$body" || true)"
-          counts+=" $(grep -c '^-      sha256 ' <<<"$body" || true) $(grep -c '^+      sha256 ' <<<"$body" || true)"
-          counts+=" $(grep -cE '^\s*version\s' "$FORMULA" || true) $(grep -cE '^\s*sha256\s' "$FORMULA" || true)"
-          if [ "$counts" != "1 1 4 4 1 4" ]; then
-            echo "::error::expected one version and four sha256 changes in a formula with one version and four sha256 lines, got [-version +version -sha256 +sha256 version sha256] = [${counts}]"
-            exit 1
-          fi
+          ./scripts/check-formula-diff.sh . "$BASE_SHA" "$HEAD_SHA"
 
       - name: Check the version is the latest published release
         id: version
