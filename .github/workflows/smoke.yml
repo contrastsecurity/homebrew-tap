@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: smoke
+  cancel-in-progress: false
+
 jobs:
   smoke:
     strategy:
@@ -18,11 +22,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Install contrast-cli and check its version
         run: |
           set -euo pipefail
@@ -31,8 +32,9 @@ jobs:
             eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           fi
           brew tap contrastsecurity/tap
-          brew install contrast-cli
-          expected="$(sed -n 's/^  version "\(.*\)"$/\1/p' Formula/contrast-cli.rb)"
+          brew install contrast-cli || { echo "::warning::brew install failed, retrying once"; sleep 30; brew install contrast-cli; }
+          # Read from the tapped formula, which is what brew installed, in case master moved past this push
+          expected="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$(brew --repository contrastsecurity/tap)/Formula/contrast-cli.rb")"
           actual="$(contrast-cli --version)"
           if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
             echo "::error::contrast-cli --version printed '${actual}', expected '${expected}'"

@@ -12,10 +12,12 @@ permissions:
 
 env:
   BASE_URL: https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns
+  FORMULA: Formula/contrast-cli.rb
 
 jobs:
   provenance:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -29,18 +31,29 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          git fetch --no-tags --quiet origin "$BASE_SHA"
           # Three dots diff against the merge base, so commits that landed on the base since don't count
-          changed="$(git diff --name-only "$BASE_SHA...$HEAD_SHA")"
-          if [ "$changed" != "Formula/contrast-cli.rb" ]; then
-            echo "::error::only Formula/contrast-cli.rb may change, but the PR changes: ${changed//$'\n'/ }"
+          range="$BASE_SHA...$HEAD_SHA"
+          changed="$(git diff --no-renames --name-only "$range")"
+          summary="$(git diff --no-renames --summary "$range")"
+          if [ "$changed" != "$FORMULA" ] || [ -n "$summary" ]; then
+            echo "::error::only the contents of ${FORMULA} may change, but the PR changes: ${changed//$'\n'/ } ${summary}"
             exit 1
           fi
-          diff="$(git diff -U0 "$BASE_SHA...$HEAD_SHA" -- Formula/contrast-cli.rb)"
-          bad="$(grep -E '^[-+]' <<<"$diff" | grep -vE '^(--- a/|\+\+\+ b/)' | cut -c2- \
-            | grep -vE '^  version "[0-9]+\.[0-9]+\.[0-9]+"$|^      sha256 "[0-9a-f]{64}"$' || true)"
+          diff="$(git diff --no-renames -U0 "$range" -- "$FORMULA")"
+          # Only lines after the first hunk header, so no content line can pass as a diff header
+          body="$(awk '/^@@/ { h = 1; next } h && /^[-+]/' <<<"$diff")"
+          bad="$(grep -vE '^[-+](  version "[0-9]+\.[0-9]+\.[0-9]+"|      sha256 "[0-9a-f]{64}")$' <<<"$body" || true)"
           if [ -n "$bad" ]; then
             echo "::error::lines other than version and sha256 changed:"
             echo "$bad"
+            exit 1
+          fi
+          counts="$(grep -c '^-  version ' <<<"$body" || true) $(grep -c '^+  version ' <<<"$body" || true)"
+          counts+=" $(grep -c '^-      sha256 ' <<<"$body" || true) $(grep -c '^+      sha256 ' <<<"$body" || true)"
+          counts+=" $(grep -cE '^\s*version\s' "$FORMULA" || true) $(grep -cE '^\s*sha256\s' "$FORMULA" || true)"
+          if [ "$counts" != "1 1 4 4 1 4" ]; then
+            echo "::error::expected one version and four sha256 changes in a formula with one version and four sha256 lines, got [-version +version -sha256 +sha256 version sha256] = [${counts}]"
             exit 1
           fi
 
@@ -48,9 +61,9 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          version="$(sed -n 's/^  version "\(.*\)"$/\1/p' Formula/contrast-cli.rb)"
-          latest="$(curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors "$BASE_URL/latest-version.txt" \
-            | sed -n 's/^VERSION=//p' | tr -d '[:space:]')"
+          version="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$FORMULA")"
+          latest="$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 5 --retry-delay 10 --retry-all-errors \
+            "$BASE_URL/latest-version.txt" | sed -n 's/^VERSION=//p' | tr -d '[:space:]')"
           if [ -z "$version" ] || [ "$version" != "$latest" ]; then
             echo "::error::formula version '${version}' is not the latest published release '${latest}'"
             exit 1
@@ -66,9 +79,16 @@ jobs:
           for platform in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
             archive="contrast-cns-${platform}.tar.gz"
             formula_sum="$(ARCHIVE="$archive" perl -0ne \
-              'print $1 if /\Q$ENV{ARCHIVE}\E"\n\s*sha256 "([0-9a-f]{64})"/' Formula/contrast-cli.rb)"
-            served_sum="$(curl -fsSI --retry 5 --retry-delay 10 --retry-all-errors "$BASE_URL/$VERSION/$archive" \
-              | tr -d '\r' | awk -F': ' 'tolower($1) == "x-checksum-sha256" { print $2 }')"
+              'print $1 if /\Q$ENV{ARCHIVE}\E"\n\s*sha256 "([0-9a-f]{64})"/' "$FORMULA")"
+            if ! headers="$(curl -fsSIL --connect-timeout 10 --max-time 30 --retry 5 --retry-delay 10 --retry-all-errors \
+              "$BASE_URL/$VERSION/$archive")"; then
+              echo "::error::could not fetch ${archive} headers from Artifactory"
+              failed=1
+              continue
+            fi
+            # -L can print several header blocks, and the last one is the final response
+            served_sum="$(tr -d '\r' <<<"$headers" \
+              | awk -F': ' 'tolower($1) == "x-checksum-sha256" { print tolower($2) }' | tail -1)"
             if [ -z "$formula_sum" ] || [ "$formula_sum" != "$served_sum" ]; then
               echo "::error::${archive}: formula has '${formula_sum}', Artifactory serves '${served_sum}'"
               failed=1

@@ -8,7 +8,7 @@ BASE_URL="https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/co
 PLATFORMS=(darwin-arm64 darwin-amd64 linux-arm64 linux-amd64)
 FORMULA="$(cd "$(dirname "$0")/.." && pwd)/Formula/contrast-cli.rb"
 # Retries any error, 404 included, because a just-published release can lag on the CDN
-CURL=(curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors)
+CURL=(curl -fsSL --connect-timeout 10 --max-time 300 --retry 5 --retry-delay 10 --retry-all-errors)
 
 output() {
   echo "$1"
