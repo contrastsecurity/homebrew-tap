@@ -1,0 +1,41 @@
+name: smoke
+
+# Installs contrast-cli from the tap the way users do and checks it runs the formula's version.
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - Formula/contrast-cli.rb
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install contrast-cli and check its version
+        run: |
+          set -euo pipefail
+          if ! command -v brew >/dev/null; then
+            # Ubuntu runners ship Homebrew without putting it on PATH
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          fi
+          brew tap contrastsecurity/tap
+          brew install contrast-cli
+          expected="$(sed -n 's/^  version "\(.*\)"$/\1/p' Formula/contrast-cli.rb)"
+          actual="$(contrast-cli --version)"
+          if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+            echo "::error::contrast-cli --version printed '${actual}', expected '${expected}'"
+            exit 1
+          fi
+          echo "contrast-cli ${actual}"
