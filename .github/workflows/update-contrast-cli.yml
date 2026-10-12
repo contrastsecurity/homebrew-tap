@@ -35,7 +35,7 @@ jobs:
           title: "Update contrast-cli to ${{ steps.update.outputs.version }}"
           body: |
             Updates `contrast-cli` to ${{ steps.update.outputs.version }} from
-            https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns/${{ steps.update.outputs.version }}/
+            https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cli/${{ steps.update.outputs.version }}/
 
             Checksums were computed from the downloaded archives, and each archive was checked for the `contrast-cli` executable and `_internal/` runtime the formula installs.
 

@@ -3,7 +3,7 @@
 # Writes "version=<x.y.z>" and "updated=<true|false>" to $GITHUB_OUTPUT when it is set.
 set -euo pipefail
 
-BASE_URL="https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns"
+BASE_URL="https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cli"
 PLATFORMS=(darwin-arm64 darwin-amd64 linux-arm64 linux-amd64)
 FORMULA="$(cd "$(dirname "$0")/.." && pwd)/Formula/contrast-cli.rb"
 
@@ -36,12 +36,12 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
 for platform in "${PLATFORMS[@]}"; do
-  archive="contrast-cns-$platform.tar.gz"
+  archive="contrast-cli-$platform.tar.gz"
   curl -fsSL -o "$workdir/$archive" "$BASE_URL/$latest/$archive"
   # Sanity check that the bundle still has the layout the formula installs
-  tar -tzf "$workdir/$archive" | grep -qx "contrast-cns-$platform/contrast-cli" \
+  tar -tzf "$workdir/$archive" | grep -qx "contrast-cli-$platform/contrast-cli" \
     || { echo "$archive is missing contrast-cli" >&2; exit 1; }
-  tar -tzf "$workdir/$archive" | grep -q "^contrast-cns-$platform/_internal/" \
+  tar -tzf "$workdir/$archive" | grep -q "^contrast-cli-$platform/_internal/" \
     || { echo "$archive is missing _internal/" >&2; exit 1; }
   sum=$(sha256 "$workdir/$archive")
   echo "  $archive $sum"
