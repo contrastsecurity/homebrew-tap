@@ -7,7 +7,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 failures=0
-BASE_URL=https://artifactory.test/contrast-cns
+BASE_URL=https://artifactory.test/contrast-cli
 PLATFORMS=(darwin-arm64 darwin-amd64 linux-arm64 linux-amd64)
 
 # Serves <url> from $SERVE/<path after BASE_URL>, the headers file with -I. The n-th fetch of a file
@@ -22,7 +22,7 @@ for arg in "$@"; do
     https://*) url="$arg" ;;
   esac
 done
-file="$SERVE/${url#https://artifactory.test/contrast-cns/}"
+file="$SERVE/${url#https://artifactory.test/contrast-cli/}"
 [ -n "$headers" ] && file="$file.headers"
 count_file="$SERVE/.count-$(printf '%s' "$file" | tr '/' '_')"
 n=$(($(cat "$count_file" 2>/dev/null || echo 0) + 1))
@@ -34,8 +34,11 @@ EOF
 printf '#!/bin/sh\n' >"$tmp/bin/sleep"
 chmod +x "$tmp/bin/curl" "$tmp/bin/sleep"
 
+# The real formula with <version>, and urls that name the contrast-cli archives even while the
+# formula's own urls still name the contrast-cns ones
 formula_at() {  # <dir> <version>
-  VERSION="$2" perl -pe 's/^  version ".*"$/  version "$ENV{VERSION}"/' "$root/Formula/contrast-cli.rb" >"$1/formula.rb"
+  VERSION="$2" perl -pe 's/^  version ".*"$/  version "$ENV{VERSION}"/; s{/contrast-cns([-\/])}{/contrast-cli$1}' \
+    "$root/Formula/contrast-cli.rb" >"$1/formula.rb"
 }
 
 # <name> <expected exit> <expected output fragment> <script and args...>, run in $dir
@@ -94,14 +97,14 @@ latest_case "latest-version.txt unreachable" 1.2.3 1 6 missing
 # <dir> <platform> <status lines and headers, one per line>
 serve_headers() {
   mkdir -p "$1/serve/9.9.9"
-  printf '%s\r\n' "${@:3}" >"$1/serve/9.9.9/contrast-cns-$2.tar.gz.headers"
+  printf '%s\r\n' "${@:3}" >"$1/serve/9.9.9/contrast-cli-$2.tar.gz.headers"
 }
 
 # Serves a final 200 carrying each archive's formula sha, in the case Artifactory uses
 serve_formula_shas() {
   local platform sum
   for platform in "${PLATFORMS[@]}"; do
-    sum="$(ARCHIVE="contrast-cns-$platform.tar.gz" perl -0ne \
+    sum="$(ARCHIVE="contrast-cli-$platform.tar.gz" perl -0ne \
       'print $1 if m{/\Q$ENV{ARCHIVE}\E"\n      sha256 "([0-9a-f]{64})"$}m' "$dir/formula.rb")"
     serve_headers "$dir" "$platform" "HTTP/1.1 200 OK" "X-Checksum-Sha256: $sum" ""
   done
@@ -114,7 +117,7 @@ checksums() {  # <name> <expected exit> <expected fragment>
 new_case
 formula_at "$dir" 9.9.9
 serve_formula_shas
-checksums "checksums match" 0 "contrast-cns-linux-amd64.tar.gz"
+checksums "checksums match" 0 "contrast-cli-linux-amd64.tar.gz"
 
 new_case
 formula_at "$dir" 9.9.9
@@ -122,7 +125,7 @@ serve_formula_shas
 sum="$(grep -m1 -oE '[0-9a-f]{64}' "$dir/formula.rb")"
 serve_headers "$dir" darwin-arm64 "HTTP/1.1 302 Found" "Location: https://cdn.test/x" "" \
   "HTTP/2 200" "x-checksum-sha256: $(tr 'a-f' 'A-F' <<<"$sum")" ""
-checksums "checksum on the final response after a redirect, any case" 0 "contrast-cns-darwin-arm64.tar.gz $sum"
+checksums "checksum on the final response after a redirect, any case" 0 "contrast-cli-darwin-arm64.tar.gz $sum"
 
 new_case
 formula_at "$dir" 9.9.9
@@ -134,24 +137,24 @@ new_case
 formula_at "$dir" 9.9.9
 serve_formula_shas
 serve_headers "$dir" linux-arm64 "HTTP/1.1 200 OK" "X-Checksum-Sha256: $(printf 'ef%.0s' {1..32})" ""
-checksums "checksum mismatch" 1 "::error::contrast-cns-linux-arm64.tar.gz: formula has"
+checksums "checksum mismatch" 1 "::error::contrast-cli-linux-arm64.tar.gz: formula has"
 
 new_case
 formula_at "$dir" 9.9.9
 serve_formula_shas
-command rm "$dir/serve/9.9.9/contrast-cns-linux-amd64.tar.gz.headers"
-checksums "headers unreachable" 1 "could not fetch contrast-cns-linux-amd64.tar.gz headers"
+command rm "$dir/serve/9.9.9/contrast-cli-linux-amd64.tar.gz.headers"
+checksums "headers unreachable" 1 "could not fetch contrast-cli-linux-amd64.tar.gz headers"
 
 new_case
 formula_at "$dir" 9.9.9
 serve_formula_shas
 perl -pi -e 's/^(      sha256 "[0-9a-f]{64}")$/$1; system("id")/ if $. == 11' "$dir/formula.rb"
-checksums "code after a sha" 1 "contrast-cns-darwin-arm64.tar.gz: formula has ''"
+checksums "code after a sha" 1 "contrast-cli-darwin-arm64.tar.gz: formula has ''"
 
 new_case
 formula_at "$dir" 9.9.9
 serve_formula_shas
-perl -pi -e 's{/contrast-cns-darwin-arm64}{/x-contrast-cns-darwin-arm64}' "$dir/formula.rb"
-checksums "url naming another archive" 1 "contrast-cns-darwin-arm64.tar.gz: formula has ''"
+perl -pi -e 's{/contrast-cli-darwin-arm64}{/x-contrast-cli-darwin-arm64}' "$dir/formula.rb"
+checksums "url naming another archive" 1 "contrast-cli-darwin-arm64.tar.gz: formula has ''"
 
 [ "$failures" -eq 0 ]

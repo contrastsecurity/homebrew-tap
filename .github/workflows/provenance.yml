@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  BASE_URL: https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns
+  BASE_URL: https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cli
   FORMULA: Formula/contrast-cli.rb
 
 jobs:

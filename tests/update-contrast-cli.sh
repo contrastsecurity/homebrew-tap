@@ -9,6 +9,10 @@ trap 'rm -rf "$tmp"' EXIT
 failures=0
 PLATFORMS=(darwin-arm64 darwin-amd64 linux-arm64 linux-amd64)
 current="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$root/Formula/contrast-cli.rb")"
+# The formula's urls may still name the contrast-cns archives, which the script no longer matches,
+# so the tests run on a copy that names the contrast-cli ones
+formula="$tmp/contrast-cli.rb"
+sed -e 's#/contrast-cns/#/contrast-cli/#' -e 's#/contrast-cns-#/contrast-cli-#' "$root/Formula/contrast-cli.rb" >"$formula"
 NEW="$((${current%%.*} + 1)).0.0"
 
 sha256() {
@@ -27,7 +31,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-file="$SERVE/${url#https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns/}"
+file="$SERVE/${url#https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cli/}"
 [ -f "$file" ] || exit 22
 if [ -n "$out" ]; then cp "$file" "$out"; else cat "$file"; fi
 EOF
@@ -39,12 +43,12 @@ make_release() {
   mkdir -p "$serve/$version"
   for platform in "${PLATFORMS[@]}"; do
     stage="$(mktemp -d "$tmp/stage.XXXXXX")"
-    mkdir -p "$stage/contrast-cns-$platform/_internal"
-    echo "$platform" >"$stage/contrast-cns-$platform/contrast-cli"
-    echo lib >"$stage/contrast-cns-$platform/_internal/lib"
-    if [ "$extra" -gt 0 ]; then (cd "$stage/contrast-cns-$platform/_internal" && touch $(seq -f 'module-%05g.so' "$extra")); fi
-    if [ -n "$omit" ]; then rm -r "${stage:?}/contrast-cns-$platform/$omit"; fi
-    tar -czf "$serve/$version/contrast-cns-$platform.tar.gz" -C "$stage" "contrast-cns-$platform"
+    mkdir -p "$stage/contrast-cli-$platform/_internal"
+    echo "$platform" >"$stage/contrast-cli-$platform/contrast-cli"
+    echo lib >"$stage/contrast-cli-$platform/_internal/lib"
+    if [ "$extra" -gt 0 ]; then (cd "$stage/contrast-cli-$platform/_internal" && touch $(seq -f 'module-%05g.so' "$extra")); fi
+    if [ -n "$omit" ]; then rm -r "${stage:?}/contrast-cli-$platform/$omit"; fi
+    tar -czf "$serve/$version/contrast-cli-$platform.tar.gz" -C "$stage" "contrast-cli-$platform"
   done
 }
 
@@ -61,7 +65,7 @@ run_case() {
   dir="$(mktemp -d "$tmp/case.XXXXXX")"
   mkdir -p "$dir/tap/scripts" "$dir/tap/Formula" "$dir/serve"
   cp "$root/scripts/update-contrast-cli.sh" "$dir/tap/scripts/"
-  cp "$root/Formula/contrast-cli.rb" "$dir/tap/Formula/"
+  cp "$formula" "$dir/tap/Formula/contrast-cli.rb"
   if [ -n "${CURRENT:-}" ]; then
     CURRENT="$CURRENT" perl -pi -e 's/^  version ".*"$/  version "$ENV{CURRENT}"/' "$dir/tap/Formula/contrast-cli.rb"
   fi
@@ -85,8 +89,8 @@ run_case() {
     grep -qx "version=$NEW" "$dir/output" || problems+=" no version=$NEW output;"
     grep -qx "  version \"$NEW\"" "$dir/tap/Formula/contrast-cli.rb" || problems+=" formula version not $NEW;"
     for platform in "${PLATFORMS[@]}"; do
-      sum="$(sha256 "$dir/serve/$NEW/contrast-cns-$platform.tar.gz")"
-      ARCHIVE="contrast-cns-$platform.tar.gz" SUM="$sum" perl -0ne \
+      sum="$(sha256 "$dir/serve/$NEW/contrast-cli-$platform.tar.gz")"
+      ARCHIVE="contrast-cli-$platform.tar.gz" SUM="$sum" perl -0ne \
         'exit(/\Q$ENV{ARCHIVE}\E"\n      sha256 "\Q$ENV{SUM}\E"$/m ? 0 : 1)' "$dir/tap/Formula/contrast-cli.rb" \
         || problems+=" $platform sha is not $sum;"
     done

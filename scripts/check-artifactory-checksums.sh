@@ -13,7 +13,7 @@ formula="$1" base_url="$2" version="$3"
 
 failed=0
 for platform in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
-  archive="contrast-cns-${platform}.tar.gz"
+  archive="contrast-cli-${platform}.tar.gz"
   # Anchored to the url's last path segment and the whole sha line, so nothing else can match
   formula_sum="$(ARCHIVE="$archive" perl -0ne \
     'print $1 if m{/\Q$ENV{ARCHIVE}\E"\n      sha256 "([0-9a-f]{64})"$}m' "$formula")"

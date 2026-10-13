@@ -4,7 +4,7 @@
 # Writes "version=<x.y.z>" and "updated=<true|false>" to $GITHUB_OUTPUT when it is set.
 set -euo pipefail
 
-BASE_URL="https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns"
+BASE_URL="https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cli"
 PLATFORMS=(darwin-arm64 darwin-amd64 linux-arm64 linux-amd64)
 FORMULA="$(cd "$(dirname "$0")/.." && pwd)/Formula/contrast-cli.rb"
 # Retries any error, 404 included, because a just-published release can lag on the CDN
@@ -43,14 +43,14 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
 for platform in "${PLATFORMS[@]}"; do
-  archive="contrast-cns-$platform.tar.gz"
+  archive="contrast-cli-$platform.tar.gz"
   "${CURL[@]}" -o "$workdir/$archive" "$BASE_URL/$target/$archive"
   # Sanity check that the bundle still has the layout the formula installs.
   # Listed once because grep -q exiting early would kill a piped tar with SIGPIPE, failing under pipefail.
   listing=$(tar -tzf "$workdir/$archive")
-  grep -qx "contrast-cns-$platform/contrast-cli" <<<"$listing" \
+  grep -qx "contrast-cli-$platform/contrast-cli" <<<"$listing" \
     || { echo "$archive is missing contrast-cli" >&2; exit 1; }
-  grep -q "^contrast-cns-$platform/_internal/" <<<"$listing" \
+  grep -q "^contrast-cli-$platform/_internal/" <<<"$listing" \
     || { echo "$archive is missing _internal/" >&2; exit 1; }
   sum=$(sha256 "$workdir/$archive")
   echo "  $archive $sum"
