@@ -8,8 +8,8 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 failures=0
 PLATFORMS=(darwin-arm64 darwin-amd64 linux-arm64 linux-amd64)
-NEW=9.9.9
 current="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$root/Formula/contrast-cli.rb")"
+NEW="$((${current%%.*} + 1)).0.0"
 
 sha256() {
   if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
@@ -33,15 +33,16 @@ if [ -n "$out" ]; then cp "$file" "$out"; else cat "$file"; fi
 EOF
 chmod +x "$tmp/bin/curl"
 
-# <serve dir> <version> [<entry to leave out of each archive>]
+# <serve dir> <version> [<entry to leave out of each archive>] [<extra files under _internal/>]
 make_release() {
-  local serve="$1" version="$2" omit="${3:-}" platform stage
+  local serve="$1" version="$2" omit="${3:-}" extra="${4:-0}" platform stage
   mkdir -p "$serve/$version"
   for platform in "${PLATFORMS[@]}"; do
     stage="$(mktemp -d "$tmp/stage.XXXXXX")"
     mkdir -p "$stage/contrast-cns-$platform/_internal"
     echo "$platform" >"$stage/contrast-cns-$platform/contrast-cli"
     echo lib >"$stage/contrast-cns-$platform/_internal/lib"
+    if [ "$extra" -gt 0 ]; then (cd "$stage/contrast-cns-$platform/_internal" && touch $(seq -f 'module-%05g.so' "$extra")); fi
     if [ -n "$omit" ]; then rm -r "${stage:?}/contrast-cns-$platform/$omit"; fi
     tar -czf "$serve/$version/contrast-cns-$platform.tar.gz" -C "$stage" "contrast-cns-$platform"
   done
@@ -49,15 +50,24 @@ make_release() {
 
 # <name> <expected exit> <expected updated output, empty for none> <latest-version.txt content>
 #   <override: "unset" or the value> [<entry to leave out of each archive>]
+# Optional settings, given as environment assignments before the call:
+#   CURRENT  version to put in the formula first (default: the real formula's)
+#   TARGET   version to publish and expect (default $NEW)
+#   EXTRA    number of extra files in each archive's _internal/
 run_case() {
   local name="$1" expected="$2" updated="$3" latest="$4" override="$5" omit="${6:-}"
+  local NEW="${TARGET:-$NEW}"
   local dir rc problems="" platform sum
   dir="$(mktemp -d "$tmp/case.XXXXXX")"
   mkdir -p "$dir/tap/scripts" "$dir/tap/Formula" "$dir/serve"
   cp "$root/scripts/update-contrast-cli.sh" "$dir/tap/scripts/"
   cp "$root/Formula/contrast-cli.rb" "$dir/tap/Formula/"
+  if [ -n "${CURRENT:-}" ]; then
+    CURRENT="$CURRENT" perl -pi -e 's/^  version ".*"$/  version "$ENV{CURRENT}"/' "$dir/tap/Formula/contrast-cli.rb"
+  fi
+  cp "$dir/tap/Formula/contrast-cli.rb" "$dir/before.rb"
   printf '%s\n' "$latest" >"$dir/serve/latest-version.txt"
-  make_release "$dir/serve" "$NEW" "$omit"
+  make_release "$dir/serve" "$NEW" "$omit" "${EXTRA:-0}"
   : >"$dir/output"
   if [ "$override" = unset ]; then
     env -u CONTRAST_CLI_VERSION PATH="$tmp/bin:$PATH" SERVE="$dir/serve" GITHUB_OUTPUT="$dir/output" \
@@ -82,7 +92,7 @@ run_case() {
     done
   elif [ "$expected" = 0 ] || [ -z "$omit" ]; then
     # Archive layout failures can leave a half-edited formula in the throwaway checkout; others must not touch it
-    cmp -s "$root/Formula/contrast-cli.rb" "$dir/tap/Formula/contrast-cli.rb" || problems+=" formula changed;"
+    cmp -s "$dir/before.rb" "$dir/tap/Formula/contrast-cli.rb" || problems+=" formula changed;"
   fi
 
   if [ -z "$problems" ]; then
@@ -98,6 +108,10 @@ run_case "latest-version.txt newer" 0 true "VERSION=$NEW" unset
 run_case "override newer, ignoring latest-version.txt" 0 true "VERSION=0.0.0" "$NEW"
 run_case "override equal" 0 false "VERSION=$NEW" "$current"
 run_case "override older" 0 false "VERSION=$NEW" 0.0.0
+CURRENT=0.9.0 TARGET=0.10.0 run_case "0.9.0 to 0.10.0 sorts by number" 0 true "VERSION=0.10.0" unset
+CURRENT=0.10.0 TARGET=0.9.0 run_case "0.10.0 to 0.9.0 is a downgrade" 0 false "VERSION=0.9.0" unset
+# A listing longer than a pipe buffer, where grep -q exiting early would SIGPIPE a piped tar
+EXTRA=2000 run_case "archive with a long listing" 0 true "VERSION=$NEW" unset
 run_case "override set but empty" 1 "" "VERSION=$NEW" ""
 run_case "override 1.2" 1 "" "VERSION=$NEW" 1.2
 run_case "override v1.2.3" 1 "" "VERSION=$NEW" v1.2.3
