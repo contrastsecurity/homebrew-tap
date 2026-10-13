@@ -9,10 +9,13 @@ trap 'rm -rf "$tmp"' EXIT
 failures=0
 PLATFORMS=(darwin-arm64 darwin-amd64 linux-arm64 linux-amd64)
 current="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$root/Formula/contrast-cli.rb")"
-# The formula's urls may still name the contrast-cns archives, which the script no longer matches,
-# so the tests run on a copy that names the contrast-cli ones
+# The tests run on copies of the formula with known urls, so they don't depend on which archive
+# names the formula currently uses: one naming the contrast-cli archives the script updates, and one
+# naming the older contrast-cns archives it must refuse
 formula="$tmp/contrast-cli.rb"
 sed -e 's#/contrast-cns/#/contrast-cli/#' -e 's#/contrast-cns-#/contrast-cli-#' "$root/Formula/contrast-cli.rb" >"$formula"
+old_urls="$tmp/contrast-cns-urls.rb"
+sed -e 's#/contrast-cli/#/contrast-cns/#' -e 's#/contrast-cli-#/contrast-cns-#' "$formula" >"$old_urls"
 NEW="$((${current%%.*} + 1)).0.0"
 
 sha256() {
@@ -52,9 +55,10 @@ make_release() {
   done
 }
 
-# <name> <expected exit> <expected updated output, empty for none> <latest-version.txt content>
+# <name> <expected exit, or "nonzero"> <expected updated output, empty for none> <latest-version.txt content>
 #   <override: "unset" or the value> [<entry to leave out of each archive>]
 # Optional settings, given as environment assignments before the call:
+#   SOURCE   formula to start from (default: the copy naming the contrast-cli archives)
 #   CURRENT  version to put in the formula first (default: the real formula's)
 #   TARGET   version to publish and expect (default $NEW)
 #   EXTRA    number of extra files in each archive's _internal/
@@ -65,7 +69,7 @@ run_case() {
   dir="$(mktemp -d "$tmp/case.XXXXXX")"
   mkdir -p "$dir/tap/scripts" "$dir/tap/Formula" "$dir/serve"
   cp "$root/scripts/update-contrast-cli.sh" "$dir/tap/scripts/"
-  cp "$formula" "$dir/tap/Formula/contrast-cli.rb"
+  cp "${SOURCE:-$formula}" "$dir/tap/Formula/contrast-cli.rb"
   if [ -n "${CURRENT:-}" ]; then
     CURRENT="$CURRENT" perl -pi -e 's/^  version ".*"$/  version "$ENV{CURRENT}"/' "$dir/tap/Formula/contrast-cli.rb"
   fi
@@ -81,7 +85,11 @@ run_case() {
       "$dir/tap/scripts/update-contrast-cli.sh" >"$dir/log" 2>&1 && rc=0 || rc=$?
   fi
 
-  [ "$rc" = "$expected" ] || problems+=" exit $rc, expected $expected;"
+  if [ "$expected" = nonzero ]; then
+    [ "$rc" != 0 ] || problems+=" exit 0, expected a failure;"
+  elif [ "$rc" != "$expected" ]; then
+    problems+=" exit $rc, expected $expected;"
+  fi
   if [ -n "$updated" ] && ! grep -qx "updated=$updated" "$dir/output"; then
     problems+=" no updated=$updated output;"
   fi
@@ -124,5 +132,6 @@ run_case "override with a leading zero" 1 "" "VERSION=$NEW" 09.9.9
 run_case "empty latest-version.txt" 1 "" "" unset
 run_case "archive without contrast-cli" 1 "" "VERSION=$NEW" unset contrast-cli
 run_case "archive without _internal" 1 "" "VERSION=$NEW" unset _internal
+SOURCE="$old_urls" run_case "formula urls naming the contrast-cns archives" nonzero "" "VERSION=$NEW" unset
 
 [ "$failures" -eq 0 ]

@@ -34,8 +34,8 @@ EOF
 printf '#!/bin/sh\n' >"$tmp/bin/sleep"
 chmod +x "$tmp/bin/curl" "$tmp/bin/sleep"
 
-# The real formula with <version>, and urls that name the contrast-cli archives even while the
-# formula's own urls still name the contrast-cns ones
+# The real formula with <version>, and urls that name the contrast-cli archives whichever names
+# the formula currently uses
 formula_at() {  # <dir> <version>
   VERSION="$2" perl -pe 's/^  version ".*"$/  version "$ENV{VERSION}"/; s{/contrast-cns([-\/])}{/contrast-cli$1}' \
     "$root/Formula/contrast-cli.rb" >"$1/formula.rb"
