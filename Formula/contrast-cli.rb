@@ -1,29 +1,29 @@
 class ContrastCli < Formula
   desc "Contrast CLI"
   homepage "https://www.contrastsecurity.com"
-  version "0.1.0"
+  version "0.0.60"
 
   base_url = "https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cns/#{version}"
 
   on_macos do
     on_arm do
       url "#{base_url}/contrast-cns-darwin-arm64.tar.gz"
-      sha256 "62906a7534511eb28dae93a3ab7452fd8175bac92f789bee73a9c2636c606255"
+      sha256 "20ae266adeba7f5fe61679c2f2deb66247b072203fa3236ca7f1839728d17730"
     end
     on_intel do
       url "#{base_url}/contrast-cns-darwin-amd64.tar.gz"
-      sha256 "47c5ded108139cb8fd251cde78527b5f8c64bfe2d3472ada6e81f2cc5fff816b"
+      sha256 "980853d895fbebc1d908a98de3ff8e9ecb5b699af270218e249b9f8f2492611b"
     end
   end
 
   on_linux do
     on_arm do
       url "#{base_url}/contrast-cns-linux-arm64.tar.gz"
-      sha256 "a78aa98e971af82c397e1a260970df6e46fc462e2bc8de298a1b2cbb2ba69b26"
+      sha256 "ebdbf249066b17596f7395048a2ce949ada11f2d09a91d8fef39fc324ceddc59"
     end
     on_intel do
       url "#{base_url}/contrast-cns-linux-amd64.tar.gz"
-      sha256 "d02e875e2117207bfe524ed26ce78643d16894ae575cb925cb18089bbbe827df"
+      sha256 "0572f53f669234e06da78c542a497beb27b0d9a3120a63df3e37c40bab1316a9"
     end
   end
 
