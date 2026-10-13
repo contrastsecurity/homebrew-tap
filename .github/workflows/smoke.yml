@@ -26,6 +26,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Install contrast-cli and check its version
+        env:
+          # Keeps brew from moving the tap off the commit under test
+          HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
           set -euo pipefail
           if ! command -v brew >/dev/null; then
@@ -33,9 +36,12 @@ jobs:
             eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           fi
           brew tap contrastsecurity/tap
+          # Test the commit that triggered this run, even if master has moved on since
+          tap="$(brew --repository contrastsecurity/tap)"
+          git -C "$tap" fetch --quiet origin "$GITHUB_SHA"
+          git -C "$tap" checkout --quiet --detach "$GITHUB_SHA"
           brew install contrast-cli || { echo "::warning::brew install failed, retrying once"; sleep 30; brew install contrast-cli; }
-          # Read from the tapped formula, which is what brew installed, in case master moved past this push
-          expected="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$(brew --repository contrastsecurity/tap)/Formula/contrast-cli.rb")"
+          expected="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$tap/Formula/contrast-cli.rb")"
           actual="$(contrast-cli --version)"
           if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
             echo "::error::contrast-cli --version printed '${actual}', expected '${expected}'"
