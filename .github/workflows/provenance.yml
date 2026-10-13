@@ -2,6 +2,9 @@ name: provenance
 
 # Checks that a contrast-cli formula change only moves the formula to the latest
 # published release, with the checksums Artifactory serves for it.
+# It runs this workflow and the gate script from the PR head, so a PR that edits
+# them can pass itself. Anything that approves on this check's behalf must
+# re-verify the PR independently rather than trust its conclusion.
 on:
   pull_request:
     paths:
@@ -39,8 +42,17 @@ jobs:
         run: |
           set -euo pipefail
           version="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$FORMULA")"
-          latest="$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 5 --retry-delay 10 --retry-all-errors \
-            "$BASE_URL/latest-version.txt" | sed -n 's/^VERSION=//p' | tr -d '[:space:]')"
+          for attempt in 1 2 3 4 5 6; do
+            latest="$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 5 --retry-delay 10 --retry-all-errors \
+              "$BASE_URL/latest-version.txt" | sed -n 's/^VERSION=//p' | tr -d '[:space:]')"
+            # The PR can open moments after promotion, before the CDN serves the new latest-version.txt
+            if [ "$version" = "$latest" ] || [ "$attempt" -eq 6 ] \
+              || [ "$(printf '%s\n%s\n' "$latest" "$version" | sort -V | tail -1)" != "$version" ]; then
+              break
+            fi
+            echo "latest-version.txt says '${latest}', retrying in 20s"
+            sleep 20
+          done
           if [ -z "$version" ] || [ "$version" != "$latest" ]; then
             echo "::error::formula version '${version}' is not the latest published release '${latest}'"
             exit 1
@@ -56,16 +68,18 @@ jobs:
           for platform in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
             archive="contrast-cns-${platform}.tar.gz"
             formula_sum="$(ARCHIVE="$archive" perl -0ne \
-              'print $1 if /\Q$ENV{ARCHIVE}\E"\n\s*sha256 "([0-9a-f]{64})"/' "$FORMULA")"
+              'print $1 if /\Q$ENV{ARCHIVE}\E"\n      sha256 "([0-9a-f]{64})"$/m' "$FORMULA")"
             if ! headers="$(curl -fsSIL --connect-timeout 10 --max-time 30 --retry 5 --retry-delay 10 --retry-all-errors \
               "$BASE_URL/$VERSION/$archive")"; then
               echo "::error::could not fetch ${archive} headers from Artifactory"
               failed=1
               continue
             fi
-            # -L can print several header blocks, and the last one is the final response
-            served_sum="$(tr -d '\r' <<<"$headers" \
-              | awk -F': ' 'tolower($1) == "x-checksum-sha256" { print tolower($2) }' | tail -1)"
+            # -L prints a header block per response, so keep only the final response's checksum
+            served_sum="$(tr -d '\r' <<<"$headers" | awk -F': ' '
+              /^HTTP\// { sum = "" }
+              tolower($1) == "x-checksum-sha256" { sum = tolower($2) }
+              END { print sum }')"
             if [ -z "$formula_sum" ] || [ "$formula_sum" != "$served_sum" ]; then
               echo "::error::${archive}: formula has '${formula_sum}', Artifactory serves '${served_sum}'"
               failed=1
