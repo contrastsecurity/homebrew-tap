@@ -19,14 +19,14 @@ sha256() {
   if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
 }
 
-if [[ -n "${CONTRAST_CLI_VERSION:-}" ]]; then
+if [[ -n "${CONTRAST_CLI_VERSION+set}" ]]; then
   target="$CONTRAST_CLI_VERSION"
 else
   target=$("${CURL[@]}" "$BASE_URL/latest-version.txt" | sed -n 's/^VERSION=//p' | tr -d '[:space:]')
 fi
 current=$(sed -n 's/^  version "\(.*\)"$/\1/p' "$FORMULA")
 
-if [[ ! "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [[ ! "$target" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo "Unexpected target version: '$target'" >&2
   exit 1
 fi
