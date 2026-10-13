@@ -9,7 +9,10 @@ permissions:
 jobs:
   scripts:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    env:
+      # Byte handling in a UTF-8 locale is what the gate has to survive
+      LC_ALL: C.UTF-8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -20,6 +23,9 @@ jobs:
 
       - name: Test the update script
         run: tests/update-contrast-cli.sh
+
+      - name: Test the provenance checks
+        run: tests/provenance-checks.sh
 
   lint:
     runs-on: ubuntu-latest
