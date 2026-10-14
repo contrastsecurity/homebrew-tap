@@ -40,6 +40,8 @@ jobs:
           tap="$(brew --repository contrastsecurity/tap)"
           git -C "$tap" fetch --quiet origin "$GITHUB_SHA"
           git -C "$tap" checkout --quiet --detach "$GITHUB_SHA"
+          # Homebrew refuses formulae from third-party taps until they are trusted
+          brew trust --formula contrastsecurity/tap/contrast-cli
           brew install contrast-cli || { echo "::warning::brew install failed, retrying once"; sleep 30; brew install contrast-cli; }
           expected="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$tap/Formula/contrast-cli.rb")"
           actual="$(contrast-cli --version)"
