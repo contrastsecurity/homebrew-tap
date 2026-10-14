@@ -39,11 +39,16 @@ jobs:
           git fetch --no-tags --quiet origin "$BASE_SHA"
           ./scripts/check-formula-diff.sh . "$BASE_SHA" "$HEAD_SHA"
 
+      # Runs even when the diff check fails, so a PR that changes more than a bump
+      # still shows whether its version and checksums are right
       - name: Check the version is the latest published release
         id: version
+        if: ${{ !cancelled() }}
         run: ./scripts/check-latest-version.sh "$FORMULA" "$BASE_URL"
 
+      # Needs the version step's output, so it only runs when that step passed
       - name: Check checksums against Artifactory
+        if: ${{ !cancelled() && steps.version.outcome == 'success' }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: ./scripts/check-artifactory-checksums.sh "$FORMULA" "$BASE_URL" "$VERSION"
