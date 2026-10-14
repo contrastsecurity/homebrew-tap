@@ -15,7 +15,7 @@ formula="$1" base_url="$2"
 
 version="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$formula")"
 for attempt in $(seq "$ATTEMPTS"); do
-  latest="$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 5 --retry-delay 10 --retry-all-errors \
+  latest="$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 10 --retry-all-errors \
     "$base_url/latest-version.txt" | sed -n 's/^VERSION=//p' | tr -d '[:space:]' || true)"
   # The PR can open moments after promotion, before the CDN serves the new latest-version.txt
   if [ "$version" = "$latest" ] || [ "$attempt" -eq "$ATTEMPTS" ] \

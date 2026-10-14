@@ -20,7 +20,9 @@ env:
 jobs:
   provenance:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Above the worst case of the scripts' retries (about 13 + 15 minutes when
+    # Artifactory is down), so they fail with their own error, not a timeout
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
