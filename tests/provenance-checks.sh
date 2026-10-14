@@ -148,7 +148,9 @@ checksums "headers unreachable" 1 "could not fetch contrast-cli-linux-amd64.tar.
 new_case
 formula_at "$dir" 9.9.9
 serve_formula_shas
-perl -pi -e 's/^(      sha256 "[0-9a-f]{64}")$/$1; system("id")/ if $. == 11' "$dir/formula.rb"
+ARCHIVE=contrast-cli-darwin-arm64.tar.gz perl -0pi -e \
+  's{(/\Q$ENV{ARCHIVE}\E"\n      sha256 "[0-9a-f]{64}")}{$1; system("id")} or die "no darwin-arm64 sha line\n"' \
+  "$dir/formula.rb"
 checksums "code after a sha" 1 "contrast-cli-darwin-arm64.tar.gz: formula has ''"
 
 new_case
