@@ -1,0 +1,49 @@
+name: provenance
+
+# Checks that a contrast-cli formula change only moves the formula to the latest
+# published release, with the checksums Artifactory serves for it.
+# It runs this workflow and its scripts from the PR head, so a PR that edits
+# them can pass itself. Anything that approves on this check's behalf must
+# re-verify the PR independently rather than trust its conclusion.
+on:
+  pull_request:
+    paths:
+      - Formula/contrast-cli.rb
+
+permissions:
+  contents: read
+
+env:
+  BASE_URL: https://pkg.contrastsecurity.com/artifactory/pathfinder-beta-distro/contrast-cli
+  FORMULA: Formula/contrast-cli.rb
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    # Above the worst case of the scripts' retries (about 13 + 15 minutes when
+    # Artifactory is down), so they fail with their own error, not a timeout
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check that only version and checksum lines changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin "$BASE_SHA"
+          ./scripts/check-formula-diff.sh . "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Check the version is the latest published release
+        id: version
+        run: ./scripts/check-latest-version.sh "$FORMULA" "$BASE_URL"
+
+      - name: Check checksums against Artifactory
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./scripts/check-artifactory-checksums.sh "$FORMULA" "$BASE_URL" "$VERSION"
